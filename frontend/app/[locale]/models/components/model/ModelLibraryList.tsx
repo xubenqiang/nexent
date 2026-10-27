@@ -35,6 +35,8 @@ import { cn } from "@/lib/utils";
 import { MODEL_SOURCES } from "@/const/modelConfig";
 import { ModelOption, ModelType, ModelSource } from "@/types/modelConfig";
 import { Can } from "@/components/permission/Can";
+import { ModelMigrationBadge } from "./ModelMigrationBadge";
+import { ModelMigrationReviewButton } from "./ModelMigrationReviewButton";
 import {
   STATUS_DOT_CLASS,
   TYPE_BADGE_CLASS,
@@ -81,8 +83,8 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
 };
 
 const STATUS_FALLBACK_LABELS: Record<string, string> = {
-  available: "可用",
-  unavailable: "不可用",
+  available: "已连通",
+  unavailable: "连接失败",
   detecting: "检测中",
   not_detected: "未检测",
 };
@@ -93,7 +95,9 @@ export function ModelLibraryList({
   onCheck,
   onEdit,
   onDelete,
+  onReviewed,
 }: {
+  onReviewed?: () => void;
   models: ModelOption[];
   /** displayName -> slot keys this model occupies (drives the 默认 badge). */
   defaultSlotMap: Record<string, string[]>;
@@ -286,6 +290,7 @@ export function ModelLibraryList({
               model={m}
               isDefault={!!(defaultSlotMap[m.displayName] || []).length}
               onCheck={() => onCheck(m.displayName, m.type)}
+              onReviewed={onReviewed}
               onEdit={() => onEdit(m)}
               onDelete={() => onDelete(m)}
             />
@@ -364,7 +369,9 @@ function ModelRow({
   onCheck,
   onEdit,
   onDelete,
+  onReviewed,
 }: {
+  onReviewed?: () => void;
   model: ModelOption;
   isDefault: boolean;
   onCheck: () => void;
@@ -391,6 +398,7 @@ function ModelRow({
             <span className="truncate font-medium text-foreground">
               {model.displayName || model.name}
             </span>
+            <ModelMigrationBadge model={model} />
             {isDefault && (
               <Badge
                 variant="secondary"
@@ -436,10 +444,15 @@ function ModelRow({
             {statusLabel}
           </span>
         ) : (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className={`size-2 rounded-full ${dotCls}`} />
-            {statusLabel}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={`size-2 rounded-full ${dotCls}`} />
+                {statusLabel}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t("model.status.lastCheckHint")}</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
@@ -455,6 +468,7 @@ function ModelRow({
         >
           <ShieldCheck className="size-4" />
         </RowAction>
+        <ModelMigrationReviewButton model={model} onReviewed={onReviewed} />
         <Can permission="model:update">
           <RowAction
             label={t("common.edit", { defaultValue: "编辑" })}

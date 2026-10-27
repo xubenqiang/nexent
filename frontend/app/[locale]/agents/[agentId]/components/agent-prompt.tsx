@@ -34,6 +34,8 @@ import Image from "next/image";
 
 import { useAgentStore } from "@/stores/agentStore";
 import { ModelDrawer } from "@/components/resource-picker/ModelDrawer";
+import { MODEL_TOKEN_LIMIT_KEYS, withoutModelTokenLimits } from "@/lib/modelParameterLayers";
+import { AgentModelParameters } from "@/components/model/AgentModelParameters";
 import { ModelParamsModal } from "@/components/resource-picker/ModelParamsModal";
 import { useModelList } from "@/hooks/model/useModelList";
 import { useInferenceFieldSpecs } from "@/hooks/model/useInferenceFieldSpecs";
@@ -369,7 +371,8 @@ export default function AgentPrompt({
   const { t } = useTranslation("common");
   const form = Form.useFormInstance();
   const { user } = useAuthorizationContext();
-  const { availableLlmModels, isSuccess: modelListLoaded } = useModelList();
+  const { llmModels: selectableLlmModels, isSuccess: modelListLoaded } =
+    useModelList();
   const { isSpeedMode } = useDeployment();
   const isReadOnly = useAgentReadOnly();
   const editedAgent = useAgentStore((state) => state.editedAgent!);
@@ -399,12 +402,12 @@ export default function AgentPrompt({
   }, [agentId, configFocusRequest]);
 
   const modelOptions = useMemo(() => {
-    return (availableLlmModels ?? []).map((m) => ({
+    return (selectableLlmModels ?? []).map((m) => ({
       value: m.id,
       label: m.displayName ?? m.name,
       displayName: m.displayName ?? m.name,
     }));
-  }, [availableLlmModels]);
+  }, [selectableLlmModels]);
 
   const availableModelIds = useMemo(
     () => new Set(modelOptions.map((option) => option.value)),
@@ -468,9 +471,9 @@ export default function AgentPrompt({
     {}) as ModelOverrideMap;
   const configuringModel = useMemo(
     () =>
-      (availableLlmModels ?? []).find((m) => m.id === configuringModelId) ??
+      (selectableLlmModels ?? []).find((m) => m.id === configuringModelId) ??
       null,
-    [availableLlmModels, configuringModelId]
+    [selectableLlmModels, configuringModelId]
   );
   useEffect(() => {
     if (!configuringModel) {
@@ -542,8 +545,8 @@ export default function AgentPrompt({
     next: ModelAdvancedSettingsValue
   ) => {
     const entry = buildModelOverrideEntry(
-      next,
-      availableLlmModels.find((model) => model.id === modelId)
+      withoutModelTokenLimits(next),
+      selectableLlmModels.find((model) => model.id === modelId)
         ?.reasoningCapability
     );
     const updated: ModelOverrideMap = { ...modelParamsOverride };
@@ -585,7 +588,7 @@ export default function AgentPrompt({
     for (const [key, val] of Object.entries(editingOverrideValue)) {
       // Custom params are diffed per-key below (deleting an inherited row
       // must persist a removal, not drop the key).
-      if (key === "__custom__") continue;
+      if (key === "__custom__" || MODEL_TOKEN_LIMIT_KEYS.includes(key)) continue;
       // Reasoning is an agent-owned snapshot; do not compare with the model
       // level setting.
       if (
@@ -867,7 +870,7 @@ export default function AgentPrompt({
           >
             <HighFidelityModelGrid
               selectedIds={selectedModelIds}
-              models={availableLlmModels ?? []}
+              models={selectableLlmModels ?? []}
               disabled={isModelSelectionDisabled}
               onAddModel={() => setIsModelSelectionOpen(true)}
               onSelectionChange={updateModelSelection}
@@ -923,7 +926,7 @@ export default function AgentPrompt({
           <ModelDrawer
             open={isModelSelectionOpen}
             onClose={() => setIsModelSelectionOpen(false)}
-            models={availableLlmModels ?? []}
+            models={selectableLlmModels ?? []}
             selectedModelIds={selectedModelIds}
             disabled={isModelSelectionDisabled}
             onSelectionChange={(ids) => {
@@ -967,7 +970,22 @@ export default function AgentPrompt({
         ))}
 
       {/* Per-model parameter override popup */}
-      <ModelParamsModal
+      {configuringModel?.profileSchemaVersion ? (
+        <AgentModelParameters
+          key={configuringModel.id}
+          modelId={configuringModel.id}
+          name={configuringModel.displayName || configuringModel.name}
+          value={modelParamsOverride[String(configuringModel.id)] ?? {}}
+          disabled={isModelSelectionDisabled}
+          onClose={() => setConfiguringModelId(null)}
+          onApply={(entry) => {
+            const updated = { ...modelParamsOverride };
+            if (Object.keys(entry).length) updated[String(configuringModel.id)] = entry;
+            else delete updated[String(configuringModel.id)];
+            updateAgent({ model_params_override: Object.keys(updated).length ? updated : null });
+          }}
+        />
+      ) : <ModelParamsModal
         open={configuringModelId !== null}
         title={
           configuringModel
@@ -995,7 +1013,7 @@ export default function AgentPrompt({
           top_p: (configuringModel as any)?.topP,
         }}
         disabled={isModelSelectionDisabled}
-      />
+      />}
     </div>
   );
 }

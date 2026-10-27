@@ -82,6 +82,7 @@ export interface ModelProfileDraftRequest {
 }
 
 export interface ModelParameterRule {
+  source?: { ref: string; [key: string]: unknown };
   key: string;
   schema: Record<string, unknown>;
   visible: boolean;
@@ -113,6 +114,10 @@ export interface ModelOutletCreateRequest extends ModelProfileDraftRequest {
 
 export interface ModelOutletProfile {
   provenance?: {
+    atomic_refs?: {
+      model?: { key: string } | null;
+      provider?: { key: string } | null;
+    };
     provider_metadata?: {
       operator_thinking?: { preset?: ThinkingControlFormat };
       operator_thinking_degree?: { mode?: ThinkingDegreeMode };
@@ -163,6 +168,13 @@ export interface ModelOutletResponse {
 
 /** Omission preserves a value; delete_parameters explicitly removes it. */
 export interface ModelOutletPatchRequest {
+  reset_parameters?: boolean;
+  profile_selection?: {
+    catalog_revision: string;
+    model_profile: ModelProfileSelection | null;
+    provider_profile: ModelProfileSelection | null;
+  };
+  request_model_id?: string;
   check_receipt?: string;
   thinking_control?: ThinkingControlFormat;
   thinking_mode?: ThinkingDegreeMode;

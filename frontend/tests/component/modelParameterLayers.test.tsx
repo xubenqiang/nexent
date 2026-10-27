@@ -402,3 +402,55 @@ it("SCB-01 model trigger summary reflects effective Agent/session reasoning valu
   setup(<ConversationModelParameterSummary conversationId={11} modelId={42} agentDefaults={{reasoning_effort:"medium"}}/>);
   expect(await screen.findByText("modelProfile.thinkingLevel.high")).toBeVisible();
 });
+
+it("SYNC-02 shows a degree-only profile in session controls without writing a synthetic toggle", async () => {
+  api.getConversationModelPreferences.mockResolvedValue({
+    version: 1,
+    parameter_values: { reasoning_effort: "high" },
+    defaults: { reasoning_effort: "low" },
+    issues: [],
+    field_specs: [
+      {
+        ...rule("reasoning_effort"),
+        schema: { type: "string", enum: ["low", "high"] },
+      },
+    ],
+  });
+  setup(<ConversationModelParameters conversationId={11} modelId={42} />);
+  const effort = await screen.findByRole("combobox", {
+    name: "chat.modelSelector.reasoningEffort",
+  });
+  await waitFor(() => expect(effort).toBeEnabled());
+  expect(screen.getByRole("switch")).toBeChecked();
+  expect(screen.getByRole("switch")).toBeDisabled();
+  fireEvent.mouseDown(effort);
+  fireEvent.click(
+    await screen.findByText("modelProfile.thinkingLevel.low")
+  );
+  await waitFor(() =>
+    expect(api.patchConversationModelPreferences).toHaveBeenCalledWith(11, 42, {
+      expected_version: 1,
+      parameter_values: { reasoning_effort: "low" },
+      delete_parameters: [],
+    })
+  );
+});
+
+it("SYNC-02 restores the degree-only profile summary from saved session parameters", async () => {
+  api.getConversationModelPreferences.mockResolvedValue({
+    version: 1,
+    parameter_values: { reasoning_effort: "high" },
+    defaults: { reasoning_effort: "low" },
+    issues: [],
+    field_specs: [
+      {
+        ...rule("reasoning_effort"),
+        schema: { type: "string", enum: ["low", "high"] },
+      },
+    ],
+  });
+  setup(<ConversationModelParameterSummary conversationId={11} modelId={42} />);
+  expect(
+    await screen.findByText("modelProfile.thinkingLevel.high")
+  ).toBeVisible();
+});

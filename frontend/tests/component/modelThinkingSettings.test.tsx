@@ -6,7 +6,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 import zh from "../../public/locales/zh/common.json";
 import en from "../../public/locales/en/common.json";
 import type { ModelParameterRule } from "../../types/modelProfile";
-import { ModelThinkingSettings } from "../../components/model/ModelThinkingSettings";
+import {
+  ModelThinkingSettings,
+  thinkingEnabled,
+} from "../../components/model/ModelThinkingSettings";
 const locale = vi.hoisted(() => ({ value: "zh" }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -220,4 +223,107 @@ it("UI-THINKING-09 waits for the current preview before materializing fallback v
   const changed = showThinking({ prefillReady: false });
   expect(changed).not.toHaveBeenCalled();
   expect(screen.queryByText("低")).not.toBeInTheDocument();
+});
+
+it.each([
+  [true, false],
+  [false, false],
+  [false, true],
+])(
+  "AEU-01 distinguishes declared budget support from a saved manual preset (declared=%s, limited=%s)",
+  (declared, limited) => {
+    render(
+      <App>
+        <ModelThinkingSettings
+          rules={[
+            {
+              key: "reasoning_budget_tokens",
+              schema: { type: "integer", minimum: 1 },
+              source: {
+                ref: declared
+                  ? "provider_budget_v1"
+                  : "operator_thinking_degree_v1",
+              },
+              visible: true,
+              editable: true,
+              required: false,
+              allowed_scopes: ["outlet"],
+              ui_group: "reasoning",
+            },
+          ]}
+          values={{ enable_thinking: true, reasoning_budget_tokens: 1024 }}
+          mode="budget_tokens"
+          declaredControlsOnly={limited}
+          onToggle={vi.fn()}
+          onModeChange={vi.fn()}
+          onValueChange={vi.fn()}
+        />
+      </App>
+    );
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "modelProfile.thinkingMode" })
+    );
+    expect(
+      screen.getAllByText("modelProfile.thinkingModeOption.budget_tokens")
+        .length
+    ).toBeGreaterThan(0);
+    if (declared || limited) {
+      expect(
+        screen.queryByText("modelProfile.thinkingModeOption.effort")
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("modelProfile.manualThinkingHint")
+      ).not.toBeInTheDocument();
+    } else {
+      expect(
+        screen.getAllByText("modelProfile.thinkingModeOption.effort").length
+      ).toBeGreaterThan(0);
+      expect(screen.getByText("modelProfile.manualThinkingHint")).toBeVisible();
+    }
+  }
+);
+
+it("SYNC-02 exposes a declared degree-only profile without an editable toggle", () => {
+  render(
+    <App>
+      <ModelThinkingSettings
+        declaredControlsOnly
+        rules={[{ ...effort, allowed_scopes: ["outlet", "conversation"] }]}
+        values={{}}
+        defaults={{ reasoning_effort: "high" }}
+        onToggle={vi.fn()}
+        onModeChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />
+    </App>
+  );
+  expect(screen.getByRole("switch")).toBeChecked();
+  expect(screen.getByRole("switch")).toBeDisabled();
+  expect(
+    screen.getByRole("combobox", { name: "modelProfile.thinkingDegree" })
+  ).toBeEnabled();
+});
+
+it("SYNC-02 preserves explicit off, declared toggle defaults and inactive degree conditions", () => {
+  expect(
+    thinkingEnabled([effort], {
+      enable_thinking: false,
+      reasoning_effort: "high",
+    })
+  ).toBe(false);
+  expect(
+    thinkingEnabled(
+      [
+        effort,
+        { ...effort, key: "enable_thinking", schema: { type: "boolean" } },
+      ],
+      { reasoning_effort: "high" }
+    )
+  ).toBe(false);
+  expect(
+    thinkingEnabled(
+      [{ ...effort, condition: { key: "mode", op: "eq", value: "thinking" } }],
+      { mode: "other" }
+    )
+  ).toBe(false);
 });

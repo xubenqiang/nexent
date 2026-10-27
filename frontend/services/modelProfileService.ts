@@ -78,6 +78,18 @@ export async function previewModelProfile(
   return profileData(API_ENDPOINTS.model.profilePreviews, request, signal);
 }
 
+export async function previewModelOutletPatch(
+  modelId: number,
+  request: ModelOutletPatchRequest,
+  signal?: AbortSignal
+): Promise<ModelProfileDraftResponse> {
+  return profileData(
+    `${API_ENDPOINTS.model.outlet(modelId)}/profile_previews`,
+    request,
+    signal
+  );
+}
+
 export async function createModelOutlet(
   request: ModelOutletCreateRequest
 ): Promise<ModelOutletResponse> {

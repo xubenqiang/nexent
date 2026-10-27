@@ -46,19 +46,10 @@ def load(name, path, monkeypatch):
 
 @pytest.fixture
 def database(monkeypatch):
-    # Use actual metadata/exception definitions without importing configured DB clients.
-    for package, directory in (
-        ("_outlet_unit_consts", "backend/consts"),
-        ("_outlet_unit_db", "backend/database"),
-    ):
-        module = ModuleType(package)
-        module.__path__ = [str(ROOT / directory)]
-        monkeypatch.setitem(sys.modules, package, module)
-    exceptions = load(
-        "_outlet_unit_consts.exceptions", "backend/consts/exceptions.py", monkeypatch
-    )
-    monkeypatch.setitem(sys.modules, "contracts.errors.exceptions", exceptions)
-    client = ModuleType("_outlet_unit_db.client")
+    # Keep actual ORM metadata and exceptions; isolate only the DB session boundary.
+    from contracts.errors import exceptions
+
+    client = ModuleType("management.db.client")
     client.sessions = []
 
     @contextmanager
@@ -70,7 +61,7 @@ def database(monkeypatch):
     monkeypatch.setitem(sys.modules, client.__name__, client)
     database = load(
         "_outlet_unit_db.model_outlet_db",
-        "backend/database/model_outlet_db.py",
+        "backend/management/db/model/outlets.py",
         monkeypatch,
     )
     return database, client, exceptions

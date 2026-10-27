@@ -4,6 +4,7 @@
 
 import { useEffect } from "react";
 import { Form, Select, Switch } from "antd";
+import { parameterIsActive } from "@/lib/modelParameterLayers";
 import { ModelParameterField } from "./ModelParameterField";
 import { useTranslation } from "react-i18next";
 import type {
@@ -15,6 +16,26 @@ export const thinkingDegreeKeys = [
   "reasoning_effort",
   "reasoning_budget_tokens",
 ];
+/** Degree-only profiles expose reasoning without inventing a toggle binding. */
+export function thinkingEnabled(
+  rules: ModelParameterRule[],
+  values: Record<string, unknown>
+) {
+  if (typeof values.enable_thinking === "boolean")
+    return values.enable_thinking;
+  return (
+    !rules.some((rule) => rule.key === "enable_thinking") &&
+    rules.some(
+      (rule) =>
+        thinkingDegreeKeys.includes(rule.key) &&
+        rule.visible &&
+        (values[rule.key] !== undefined ||
+          rule.default_value !== undefined ||
+          rule.fixed_value !== undefined) &&
+        parameterIsActive(rule.condition, values)
+    )
+  );
+}
 export function detectThinkingMode(
   rules: ModelParameterRule[],
   values: Record<string, unknown>
@@ -83,7 +104,9 @@ export function ModelThinkingSettings({
   const { t } = useTranslation();
   const effective = { ...defaults, ...values };
   const toggle = rules.find((rule) => rule.key === "enable_thinking");
-  const enabled = effective.enable_thinking === true;
+  const enabled = declaredControlsOnly
+    ? thinkingEnabled(rules, effective)
+    : effective.enable_thinking === true;
   const selectedMode =
     mode && mode !== "default" ? mode : detectThinkingMode(rules, effective);
   const key =
@@ -104,12 +127,16 @@ export function ModelThinkingSettings({
         : { type: "integer", minimum: 1 },
   };
   const fixed = rule.editable === false;
+  const declaredDegrees = rules.filter(
+    (item) =>
+      thinkingDegreeKeys.includes(item.key) &&
+      (declaredControlsOnly ||
+        item.source?.ref !== "operator_thinking_degree_v1")
+  );
   const modes = (["effort", "budget_tokens"] as const).filter(
     (value, index) =>
-      rules.some((item) => item.key === thinkingDegreeKeys[index]) ||
-      (!declaredControlsOnly &&
-        (mode === value ||
-          !rules.some((item) => thinkingDegreeKeys.includes(item.key))))
+      declaredDegrees.some((item) => item.key === thinkingDegreeKeys[index]) ||
+      (!declaredControlsOnly && !declaredDegrees.length)
   );
   const currentValue = effective[key];
   const prefill =
@@ -201,6 +228,11 @@ export function ModelThinkingSettings({
             />
           )}
         </>
+      )}
+      {enabled && !declaredControlsOnly && !declaredDegrees.length && (
+        <p className="col-span-full text-xs text-muted-foreground">
+          {t("modelProfile.manualThinkingHint")}
+        </p>
       )}
     </div>
   );

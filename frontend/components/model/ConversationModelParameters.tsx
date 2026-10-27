@@ -16,6 +16,7 @@ import {
 } from "@/components/chat/ModelParameterSettings";
 import {
   detectThinkingMode,
+  thinkingEnabled,
   thinkingDegreePrefill,
 } from "./ModelThinkingSettings";
 import { ModelThinkingToggle } from "@/components/chat/ModelThinkingToggle";
@@ -102,7 +103,7 @@ export function ConversationModelParameterSummary({
     ...agentDefaults,
     ...query.data.parameter_values,
   };
-  if (values.enable_thinking !== true) return null;
+  if (!thinkingEnabled(query.data.field_specs, values)) return null;
   const degree = activeThinkingDegree(query.data, values);
   const effort =
     degree?.key === "reasoning_effort" ? values.reasoning_effort : undefined;
@@ -229,6 +230,7 @@ export function ConversationModelParameters({
   );
   const degree = saved ? activeThinkingDegree(saved, effective) : undefined;
   const pending = disabled || quick.isPending || query.isFetching;
+  const enabled = thinkingEnabled(saved?.field_specs ?? [], effective);
   return (
     <div
       onKeyDown={(event) => {
@@ -245,7 +247,7 @@ export function ConversationModelParameters({
         }
       >
         <ModelThinkingToggle
-          checked={effective.enable_thinking === true}
+          checked={enabled}
           disabled={
             pending ||
             advancedOpen ||
@@ -255,7 +257,7 @@ export function ConversationModelParameters({
           }
           onChange={(value) => quick.mutate({ key: "enable_thinking", value })}
         />
-        {effective.enable_thinking === true && degree && (
+        {enabled && degree && (
           <Form
             layout="horizontal"
             colon={false}
